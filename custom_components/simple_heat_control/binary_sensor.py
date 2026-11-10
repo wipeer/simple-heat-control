@@ -15,7 +15,7 @@ from .hub import Hub
 
 
 def boiler_device(entry_id: str) -> DeviceInfo:
-    return DeviceInfo(identifiers={(DOMAIN, entry_id)}, name="Heat Control boiler", manufacturer="Heat Control", model="Boiler")
+    return DeviceInfo(identifiers={(DOMAIN, entry_id)}, name="Simple Heat Control boiler", manufacturer="Simple Heat Control", model="Boiler")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:

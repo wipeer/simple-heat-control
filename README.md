@@ -1,15 +1,19 @@
-# Heat Control for Home Assistant
+# Simple Heat Control for Home Assistant
 
-A small custom integration (`heat_control`) that heats each room from its own temperature sensor and
-starts the Vaillant boiler when any room needs heat — and shows **why** it does everything.
+A small custom integration (`simple_heat_control`) that heats each room from its own temperature
+sensors and starts the Vaillant boiler when any room needs heat — and shows **why** it does everything.
 
 ## How it works
 
-Per room, every minute and whenever the room sensor changes:
+Per room, every minute and whenever a room sensor changes:
 
+0. **Room temperature** from one or more sensors. With several, the room's *With several sensors,
+   use* setting decides: **average**, **coldest**, **warmest**, **median**, or **backup** (the first
+   sensor counts; the others stand in, in order, while it is stale or unavailable). Stale or
+   unavailable sensors are always left out, and the reason says so (e.g. `· 1 of 3 sensors stale`).
 1. **Target** = the room's weekly schedule in its active preset, or a manual override (until the next
    schedule change, or until cleared).
-2. **Demand** (hysteresis, default 0.5 °C): heating starts when the room is 0.5 °C below the target and
+2. **Demand** (hysteresis, default 0.5 °C, per room or one for the whole house in *Options*): heating starts when the room is 0.5 °C below the target and
    stops when it reaches the target.
 3. **TRV**: while the room wants heat, the TRV gets `heat`, preset `manual` (so its own schedule can't
    interfere) and a regulated setpoint. While it doesn't, the TRV gets its minimum setpoint (valve
@@ -17,9 +21,9 @@ Per room, every minute and whenever the room sensor changes:
 4. **Regulation** is the same as Versatile Thermostat 10.6.4 (`light`/`medium`/`strong`): the TRV sits
    next to the radiator and reads too warm, so its setpoint is raised by
    `kp·error + ki·accumulated error + k_ext·(room − outdoor)`, capped (medium: ±2 °C), recalculated every
-   5 min.
+   5 min. The outdoor thermometer is per room, or one for the whole house in *Options*.
 5. **Convector relay** (optional) is on while the room wants heat.
-6. **Stale sensor**: if the room sensor hasn't reported for *stale minutes* (default 180), the TRV gets
+6. **Stale sensors**: if no room sensor has reported for *stale minutes* (default 180), the TRV gets
    the plain target and regulates on its own sensor; the room counts as wanting heat while the TRV
    reports `heating`.
 
@@ -33,8 +37,8 @@ calls are at most one per minute. The *Boiler control* switch off = never touch 
 setpoint and boiler quick veto it *would* send), but nothing is sent to TRVs, relays or the boiler.
 Each room's `actions` attribute and the card's *Recent actions* list the calls it would have made.
 
-Switch it with the *Dry run* switch on the Heat Control boiler device or in the card's *Options*. Turning dry
-run on cancels a real quick veto Heat Control had set. The setting is stored by Heat Control itself,
+Switch it with the *Dry run* switch on the Simple Heat Control boiler device or in the card's *Options*. Turning dry
+run on cancels a real quick veto Simple Heat Control had set. The setting is stored by Simple Heat Control itself,
 so it also holds for rooms before the boiler is set up.
 
 ## Presets
@@ -58,7 +62,7 @@ Automations use the select entities, e.g.:
 ```yaml
 action: select.select_option
 target:
-  entity_id: select.heat_control_boiler_house_preset   # or a room's Preset entity
+  entity_id: select.simple_heat_control_boiler_house_preset   # or a room's Preset entity
 data:
   option: Vacation
 ```
@@ -68,12 +72,12 @@ Renaming a preset changes the option name; automations that use the old name nee
 ## Entities
 
 Entity ids depend on the device name and area HA gives them (e.g. a boiler device in the area
-Koupelna gives `switch.koupelna_heat_control_boiler_dry_run`), so names are given here.
+Koupelna gives `switch.koupelna_simple_heat_control_boiler_dry_run`), so names are given here.
 
 Per room (device = room name):
 - room climate — on/off, target. Setting a temperature = override until the next schedule change.
   Preset `schedule` clears the override. Attributes hold everything: `reason`, `schedule_target`,
-  `next_change`, `override`, `sensor_age_min`, `trv_setpoint`, `trv_action`, `trv_problem`,
+  `next_change`, `override`, `sensor_readings` (each room sensor: value, age, fresh, used), `sensor_age_min`, `trv_setpoint`, `trv_action`, `trv_problem`,
   `regulation_detail` (p/i/ext parts of the offset), `last_error`.
 - room *Heat demand* binary sensor — on while the room wants heat, with `reason`.
 - room *Preset* select — the preset this room follows (also the `preset` attribute of the climate).
@@ -91,7 +95,7 @@ Boiler:
 The integration loads the card itself. Add to a dashboard:
 
 ```yaml
-type: custom:heat-control-card
+type: custom:simple-heat-control-card
 # time_format: 24   # optional, 12 or 24; used only while Options → Time format is Automatic
 ```
 
@@ -101,12 +105,14 @@ type: custom:heat-control-card
 
 - **Mode**: live or dry run (going live asks first).
 - **Time format**: automatic (the card's `time_format:`, else your HA profile), 24 h or 12 h.
+- **Heating for the whole house**: a hysteresis and an outdoor thermometer. When set here, every
+  room uses them and its own setting is ignored; empty = each room uses its own.
 - **Language**: automatic (Home Assistant's language), English, Čeština, or a loaded translation. It
-  covers the card and the texts Heat Control computes (reasons, TRV actions, boiler status), so
+  covers the card and the texts Simple Heat Control computes (reasons, TRV actions, boiler status), so
   those attributes change language too. HA's own setup dialogs and entity names follow each user's
   HA language (`translations/en.json`, `translations/cs.json`).
 - **Your own translation**: *Export English (template)* downloads
-  [`lang/en.json`](custom_components/heat_control/lang/en.json): one `"key": "text"` per line.
+  [`lang/en.json`](custom_components/simple_heat_control/lang/en.json): one `"key": "text"` per line.
   Translate the texts, keep everything in `{curly braces}` unchanged, set `_language` (e.g. `de`, used
   for plural forms) and `_name`, then *Load from file…* or paste it. Unknown keys are reported and
   ignored; missing texts stay English. A text can also be plural forms, e.g.
@@ -139,10 +145,10 @@ New rooms start with 20 °C all week in every preset.
 as a custom repository of type *Integration*, install *Simple Heat Control*, and restart Home
 Assistant. Updates then show up like any other.
 
-**By hand**: copy `custom_components/heat_control` from the latest release into your Home Assistant
+**By hand**: copy `custom_components/simple_heat_control` from the latest release into your Home Assistant
 `config/custom_components/` folder and restart Home Assistant.
 
-Then *Settings → Devices & services → Add integration → Heat Control*: first *Set up the boiler*,
+Then *Settings → Devices & services → Add integration → Simple Heat Control*: first *Set up the boiler*,
 then *Add a room* once per room. It starts in dry run: check the card, then switch dry run off in
 the card's *Options*.
 

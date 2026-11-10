@@ -1,4 +1,4 @@
-"""Websocket commands used by the heat-control card."""
+"""Websocket commands used by the simple-heat-control card."""
 from __future__ import annotations
 
 from typing import Any
@@ -8,7 +8,6 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 
-from . import i18n
 from .const import DOMAIN
 from .hub import Hub
 
@@ -32,7 +31,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_translations)
 
 
-@websocket_api.websocket_command({vol.Required("type"): "heat_control/config"})
+@websocket_api.websocket_command({vol.Required("type"): "simple_heat_control/config"})
 @callback
 def ws_config(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     hub = _hub(hass)
@@ -71,7 +70,7 @@ def _texts(hub: Hub) -> dict:
     }
 
 
-@websocket_api.websocket_command({vol.Required("type"): "heat_control/dry_run/set", vol.Required("dry_run"): bool})
+@websocket_api.websocket_command({vol.Required("type"): "simple_heat_control/dry_run/set", vol.Required("dry_run"): bool})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_set_dry_run(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -87,7 +86,7 @@ def _room_or_error(hass, connection, msg) -> bool:
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): "heat_control/schedule/set",
+    vol.Required("type"): "simple_heat_control/schedule/set",
     vol.Required("room_id"): str,
     vol.Required("schedule"): dict,
     vol.Optional("preset"): str,
@@ -106,7 +105,7 @@ async def ws_set_schedule(hass: HomeAssistant, connection: websocket_api.ActiveC
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): "heat_control/override/set",
+    vol.Required("type"): "simple_heat_control/override/set",
     vol.Required("room_id"): str,
     vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=5, max=30)),
     vol.Optional("until"): vol.Any(None, str),
@@ -124,7 +123,7 @@ async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveC
     connection.send_result(msg["id"], {"override": hub.get_override(msg["room_id"])})
 
 
-@websocket_api.websocket_command({vol.Required("type"): "heat_control/override/clear", vol.Required("room_id"): str})
+@websocket_api.websocket_command({vol.Required("type"): "simple_heat_control/override/clear", vol.Required("room_id"): str})
 @websocket_api.async_response
 async def ws_clear_override(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if not _room_or_error(hass, connection, msg):
@@ -144,7 +143,7 @@ async def _preset_call(connection, msg, call) -> None:
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): "heat_control/preset/create",
+    vol.Required("type"): "simple_heat_control/preset/create",
     vol.Required("name"): str,
     vol.Optional("copy_from"): str,
     vol.Optional("temperature"): vol.Coerce(float),
@@ -159,7 +158,7 @@ async def ws_preset_create(hass: HomeAssistant, connection: websocket_api.Active
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): "heat_control/preset/rename", vol.Required("name"): str, vol.Required("new_name"): str,
+    vol.Required("type"): "simple_heat_control/preset/rename", vol.Required("name"): str, vol.Required("new_name"): str,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -169,7 +168,7 @@ async def ws_preset_rename(hass: HomeAssistant, connection: websocket_api.Active
     await _preset_call(connection, msg, run())
 
 
-@websocket_api.websocket_command({vol.Required("type"): "heat_control/preset/delete", vol.Required("name"): str})
+@websocket_api.websocket_command({vol.Required("type"): "simple_heat_control/preset/delete", vol.Required("name"): str})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_preset_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -180,7 +179,7 @@ async def ws_preset_delete(hass: HomeAssistant, connection: websocket_api.Active
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): "heat_control/preset/activate",
+    vol.Required("type"): "simple_heat_control/preset/activate",
     vol.Required("name"): str,
     vol.Optional("room_id"): str,  # one room; without it, every room
 })
@@ -197,25 +196,29 @@ async def ws_preset_activate(hass: HomeAssistant, connection: websocket_api.Acti
 
 # ---- options and translations ------------------------------------------------------------------
 @websocket_api.websocket_command({
-    vol.Required("type"): "heat_control/options/set",
+    vol.Required("type"): "simple_heat_control/options/set",
     vol.Optional("time_format"): vol.In(["auto", "12", "24"]),
     vol.Optional("language"): str,
     vol.Optional("translation"): vol.Any(None, dict),  # null removes the custom translation
+    # house-wide values every room uses; null = each room uses its own
+    vol.Optional("hysteresis"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0.1, max=2.0))),
+    vol.Optional("outdoor_sensor"): vol.Any(None, str),
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_options_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     hub = _hub(hass)
     try:
-        report = await hub.async_set_options(msg.get("time_format"), msg.get("language"),
-                                             msg["translation"] if "translation" in msg else i18n.MISSING)
+        changes = {k: msg[k] for k in ("time_format", "language", "translation", "hysteresis", "outdoor_sensor")
+                   if k in msg}
+        report = await hub.async_set_options(changes)
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_options", str(err))
         return
     connection.send_result(msg["id"], {"report": report, **_texts(hub)})
 
 
-@websocket_api.websocket_command({vol.Required("type"): "heat_control/translations"})
+@websocket_api.websocket_command({vol.Required("type"): "simple_heat_control/translations"})
 @callback
 def ws_translations(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Every built-in language file and the custom translation, for exporting."""

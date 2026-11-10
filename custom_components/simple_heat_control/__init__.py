@@ -1,4 +1,4 @@
-"""Heat Control: per-room heating with a visible reason for everything it does."""
+"""Simple Heat Control: per-room heating with a visible reason for everything it does."""
 from __future__ import annotations
 
 from pathlib import Path

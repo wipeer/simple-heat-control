@@ -22,7 +22,7 @@ PRESET_OVERRIDE = "override"
 
 
 def room_device(room: RoomController) -> DeviceInfo:
-    return DeviceInfo(identifiers={(DOMAIN, room.room_id)}, name=room.name, manufacturer="Heat Control", model="Room")
+    return DeviceInfo(identifiers={(DOMAIN, room.room_id)}, name=room.name, manufacturer="Simple Heat Control", model="Room")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:

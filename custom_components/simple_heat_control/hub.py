@@ -10,7 +10,8 @@ from . import i18n, presets
 from .const import DEFAULT_SCHEDULE_TEMP, STORAGE_KEY, STORAGE_VERSION
 from .schedule import validate
 
-DEFAULT_OPTIONS = {"time_format": "auto", "language": "auto"}
+# hysteresis / outdoor_sensor: None = each room uses its own; a value = every room uses it
+DEFAULT_OPTIONS = {"time_format": "auto", "language": "auto", "hysteresis": None, "outdoor_sensor": None}
 
 if TYPE_CHECKING:
     from .boiler import BoilerController
@@ -79,10 +80,27 @@ class Hub:
     def _use_language(self) -> None:
         self.t = i18n.Translator(self.strings(), self._builtin.get("en", {}))
 
-    async def async_set_options(self, time_format: str | None = None, language: str | None = None,
-                                translation: Any = i18n.MISSING) -> dict:
-        """Change options; returns the report on an uploaded translation (unknown and missing keys)."""
+    async def async_set_options(self, changes: dict) -> dict:
+        """Change the options named in `changes` (None clears hysteresis, outdoor_sensor and translation).
+
+        Returns the report on an uploaded translation (unknown and missing keys)."""
         report: dict = {}
+        options = self._data["options"]
+        if "hysteresis" in changes:
+            value = changes["hysteresis"]
+            if value is not None:
+                value = round(float(value), 1)
+                if not 0.1 <= value <= 2.0:
+                    raise ValueError("hysteresis is 0.1 to 2.0 °C")
+            options["hysteresis"] = value
+        if "outdoor_sensor" in changes:
+            entity_id = changes["outdoor_sensor"] or None
+            if entity_id is not None and not entity_id.startswith("sensor."):
+                raise ValueError("the outdoor thermometer must be a sensor entity")
+            options["outdoor_sensor"] = entity_id
+        translation = changes.get("translation", i18n.MISSING)
+        time_format = changes.get("time_format")
+        language = changes.get("language")
         if translation is not i18n.MISSING:
             if translation is None:
                 self._data["translation"] = None
@@ -103,7 +121,7 @@ class Hub:
             self._data["options"]["language"] = language
         await self._async_save()
         self._use_language()
-        # reasons are text: compute them again in the new language
+        # reasons are text and hysteresis/outdoor change decisions: compute everything again
         for room in self.rooms.values():
             await room.async_evaluate()
         if self.boiler is not None:

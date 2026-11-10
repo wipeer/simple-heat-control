@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Heat Control",
+        "title": "Simple Heat Control",
         "menu_options": {
           "room": "Přidat místnost",
           "boiler": "Nastavit kotel"
@@ -12,7 +12,8 @@
         "title": "Přidat místnost",
         "data": {
           "name": "Název",
-          "temperature_sensor": "Teplotní čidlo v místnosti",
+          "temperature_sensor": "Teplotní čidla v místnosti",
+          "sensor_mode": "Při více čidlech použít",
           "trv": "Termostatická hlavice (TRV)",
           "valve_position_sensor": "Čidlo otevření ventilu",
           "relay": "Relé ventilátoru konvektoru",
@@ -23,12 +24,13 @@
           "stale_minutes": "Čidlo v místnosti neodpovídá po"
         },
         "data_description": {
-          "temperature_sensor": "Čidlo v místnosti, dál od radiátoru. Podle něj se rozhoduje o topení.",
+          "temperature_sensor": "Jedno nebo více čidel v místnosti, dál od radiátoru. Podle nich se rozhoduje o topení.",
+          "sensor_mode": "Jak z více čidel vznikne jedna teplota místnosti. Čidla, která neodpovídají nebo jsou nedostupná, se vynechají. Záloha: platí první čidlo, ostatní ho zastoupí, dokud neodpovídá.",
           "valve_position_sensor": "Nepovinné. Zobrazuje se na kartě.",
           "relay": "Nepovinné. Zapnuté, dokud místnost chce teplo.",
-          "outdoor_sensor": "Nepovinné. Používá ho regulace, stejně jako Versatile Thermostat.",
+          "outdoor_sensor": "Nepovinné. Používá ho regulace, stejně jako Versatile Thermostat. Nepoužije se, dokud je venkovní čidlo nastavené pro celý dům v Nastavení karty.",
           "regulation": "O kolik se hlavici zvýší nastavená teplota, protože sedí u radiátoru a měří víc. Stejná nastavení jako ve Versatile Thermostat.",
-          "hysteresis": "Topit se začne o tolik pod cílovou teplotou a přestane se při jejím dosažení.",
+          "hysteresis": "Topit se začne o tolik pod cílovou teplotou a přestane se při jejím dosažení. Nepoužije se, dokud je hystereze nastavená pro celý dům v Nastavení karty.",
           "close_when_satisfied": "Dokud místnost nepotřebuje teplo, hlavice dostane svou minimální teplotu.",
           "stale_minutes": "Když čidlo tak dlouho nepošle hodnotu, hlavice reguluje podle svého vlastního čidla."
         }
@@ -56,7 +58,8 @@
       "init": {
         "title": "Nastavení",
         "data": {
-          "temperature_sensor": "Teplotní čidlo v místnosti",
+          "temperature_sensor": "Teplotní čidla v místnosti",
+          "sensor_mode": "Při více čidlech použít",
           "trv": "Termostatická hlavice (TRV)",
           "valve_position_sensor": "Čidlo otevření ventilu",
           "relay": "Relé ventilátoru konvektoru",
@@ -69,6 +72,17 @@
           "quick_veto_temperature": "Teplota quick veto",
           "quick_veto_hours": "Délka quick veto",
           "boiler_status_sensor": "Čidlo stavu kotle"
+        },
+        "data_description": {
+          "temperature_sensor": "Jedno nebo více čidel v místnosti, dál od radiátoru. Podle nich se rozhoduje o topení.",
+          "sensor_mode": "Jak z více čidel vznikne jedna teplota místnosti. Čidla, která neodpovídají nebo jsou nedostupná, se vynechají. Záloha: platí první čidlo, ostatní ho zastoupí, dokud neodpovídá.",
+          "valve_position_sensor": "Nepovinné. Zobrazuje se na kartě.",
+          "relay": "Nepovinné. Zapnuté, dokud místnost chce teplo.",
+          "outdoor_sensor": "Nepovinné. Používá ho regulace, stejně jako Versatile Thermostat. Nepoužije se, dokud je venkovní čidlo nastavené pro celý dům v Nastavení karty.",
+          "regulation": "O kolik se hlavici zvýší nastavená teplota, protože sedí u radiátoru a měří víc. Stejná nastavení jako ve Versatile Thermostat.",
+          "hysteresis": "Topit se začne o tolik pod cílovou teplotou a přestane se při jejím dosažení. Nepoužije se, dokud je hystereze nastavená pro celý dům v Nastavení karty.",
+          "close_when_satisfied": "Dokud místnost nepotřebuje teplo, hlavice dostane svou minimální teplotu.",
+          "stale_minutes": "Když čidlo tak dlouho nepošle hodnotu, hlavice reguluje podle svého vlastního čidla."
         }
       }
     }
@@ -80,6 +94,15 @@
         "light": "Slabá",
         "medium": "Střední",
         "strong": "Silná"
+      }
+    },
+    "sensor_mode": {
+      "options": {
+        "average": "Průměr",
+        "coldest": "Nejchladnější",
+        "warmest": "Nejteplejší",
+        "median": "Medián",
+        "backup": "Záloha (první čidlo, ostatní zastoupí)"
       }
     }
   },

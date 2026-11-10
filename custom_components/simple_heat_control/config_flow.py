@@ -10,11 +10,12 @@ from homeassistant.helpers import selector as sel
 
 from .const import (
     CONF_BOILER_CLIMATE, CONF_BOILER_STATUS_SENSOR, CONF_CLOSE_WHEN_SATISFIED, CONF_ENTRY_TYPE,
-    CONF_HYSTERESIS, CONF_NAME, CONF_OUTDOOR_SENSOR, CONF_REGULATION, CONF_RELAY, CONF_STALE_MINUTES,
-    CONF_TEMP_SENSOR, CONF_TRV, CONF_VALVE_POSITION, CONF_VETO_HOURS, CONF_VETO_TEMP,
-    DEFAULT_CLOSE_WHEN_SATISFIED, DEFAULT_HYSTERESIS, DEFAULT_REGULATION, DEFAULT_STALE_MINUTES,
-    DEFAULT_VETO_HOURS, DEFAULT_VETO_TEMP, DOMAIN, ENTRY_BOILER, ENTRY_ROOM,
+    CONF_HYSTERESIS, CONF_NAME, CONF_OUTDOOR_SENSOR, CONF_REGULATION, CONF_RELAY, CONF_SENSOR_MODE,
+    CONF_STALE_MINUTES, CONF_TEMP_SENSOR, CONF_TRV, CONF_VALVE_POSITION, CONF_VETO_HOURS, CONF_VETO_TEMP,
+    DEFAULT_CLOSE_WHEN_SATISFIED, DEFAULT_HYSTERESIS, DEFAULT_REGULATION, DEFAULT_SENSOR_MODE,
+    DEFAULT_STALE_MINUTES, DEFAULT_VETO_HOURS, DEFAULT_VETO_TEMP, DOMAIN, ENTRY_BOILER, ENTRY_ROOM,
 )
+from .sensors import MODES as SENSOR_MODES
 
 
 def _opt(key: str, defaults: dict, fallback: Any = None) -> vol.Optional:
@@ -22,13 +23,21 @@ def _opt(key: str, defaults: dict, fallback: Any = None) -> vol.Optional:
     return vol.Optional(key, description={"suggested_value": value}) if value is not None else vol.Optional(key)
 
 
+def _as_list(value: Any) -> Any:
+    return [value] if isinstance(value, str) else value
+
+
 def room_schema(d: dict, with_name: bool) -> vol.Schema:
     fields: dict = {}
     if with_name:
         fields[vol.Required(CONF_NAME, default=d.get(CONF_NAME, ""))] = sel.TextSelector()
     fields.update({
-        vol.Required(CONF_TEMP_SENSOR, default=d.get(CONF_TEMP_SENSOR, vol.UNDEFINED)):
-            sel.EntitySelector(sel.EntitySelectorConfig(domain="sensor", device_class="temperature")),
+        # one or more; with several, the first is the main one for `backup`
+        vol.Required(CONF_TEMP_SENSOR, default=_as_list(d.get(CONF_TEMP_SENSOR, vol.UNDEFINED))):
+            sel.EntitySelector(sel.EntitySelectorConfig(domain="sensor", device_class="temperature", multiple=True)),
+        vol.Required(CONF_SENSOR_MODE, default=d.get(CONF_SENSOR_MODE, DEFAULT_SENSOR_MODE)): sel.SelectSelector(
+            sel.SelectSelectorConfig(options=list(SENSOR_MODES), translation_key="sensor_mode",
+                                     mode=sel.SelectSelectorMode.DROPDOWN)),
         vol.Required(CONF_TRV, default=d.get(CONF_TRV, vol.UNDEFINED)):
             sel.EntitySelector(sel.EntitySelectorConfig(domain="climate")),
         _opt(CONF_VALVE_POSITION, d): sel.EntitySelector(sel.EntitySelectorConfig(domain="sensor")),
@@ -63,7 +72,7 @@ def _clean(user_input: dict) -> dict:
     return {k: v for k, v in user_input.items() if v not in (None, "")}
 
 
-class HeatControlConfigFlow(ConfigFlow, domain=DOMAIN):
+class SimpleHeatControlConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input: dict | None = None) -> ConfigFlowResult:
@@ -86,10 +95,10 @@ class HeatControlConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        return HeatControlOptionsFlow()
+        return SimpleHeatControlOptionsFlow()
 
 
-class HeatControlOptionsFlow(OptionsFlow):
+class SimpleHeatControlOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         current = {**self.config_entry.data, **self.config_entry.options}
         is_boiler = self.config_entry.data[CONF_ENTRY_TYPE] == ENTRY_BOILER

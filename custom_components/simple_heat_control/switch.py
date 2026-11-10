@@ -1,4 +1,4 @@
-"""Boiler control switch: off = Heat Control never calls myVaillant (kill switch)."""
+"""Boiler control switch: off = Simple Heat Control never calls myVaillant (kill switch)."""
 from __future__ import annotations
 
 from typing import Any
@@ -22,7 +22,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 class DryRunSwitch(SwitchEntity):
     """On = rooms and boiler compute and show everything, but nothing is sent to any device.
 
-    The setting lives in Heat Control's storage (not in this entity), so it also holds for rooms
+    The setting lives in Simple Heat Control's storage (not in this entity), so it also holds for rooms
     and is on after a fresh install until switched off.
     """
 

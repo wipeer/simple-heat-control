@@ -1,6 +1,6 @@
-// Heat Control card: weekly timeline per room + Vaillant, live reason, presets, schedule and override editor,
+// Simple Heat Control card: weekly timeline per room + Vaillant, live reason, presets, schedule and override editor,
 // options (live/dry run, time format, language). Plain custom element, no dependencies. Loaded automatically
-// by the heat_control integration. Every text comes from the integration's lang/*.json (see _t).
+// by the simple_heat_control integration. Every text comes from the integration's lang/*.json (see _t).
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const VAILLANT_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -36,11 +36,11 @@ function download(name, data) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-class HeatControlCard extends HTMLElement {
+class SimpleHeatControlCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this._cfg = null;       // from heat_control/config, including options and texts
+    this._cfg = null;       // from simple_heat_control/config, including options and texts
     this._day = null;       // day shown on the timeline
     this._edit = null;      // room editor state, see _startEdit
     this._house = null;     // {mode:"switch", to} or {mode:"manage", ...} while a preset panel is open
@@ -131,10 +131,10 @@ class HeatControlCard extends HTMLElement {
   async _load() {
     this._loading = true;
     try {
-      this._cfg = await this._hass.callWS({ type: "heat_control/config" });
+      this._cfg = await this._hass.callWS({ type: "simple_heat_control/config" });
       this._error = "";
     } catch (e) {
-      this._error = this._cfg ? this._tp("card.load_error", { error: e.message || e }) : `Couldn't load Heat Control: ${e.message || e}`;
+      this._error = this._cfg ? this._tp("card.load_error", { error: e.message || e }) : `Couldn't load Simple Heat Control: ${e.message || e}`;
     }
     this._loading = false;
     this._loadedAt = Date.now();
@@ -386,6 +386,14 @@ class HeatControlCard extends HTMLElement {
       .map(([v, k]) => `<option value="${v}" ${opt.time_format === v ? "selected" : ""}>${this._t(k)}</option>`).join("");
     const langs = [["auto", this._tp("opt.lang_auto")], ...Object.entries(c.languages || {})];
     if (c.custom) langs.push(["custom", this._tp("opt.lang_custom", { name: c.custom.name })]);
+    // temperature sensors HA knows, by name; the chosen one stays listed even if it is gone
+    const temps = Object.entries((this._hass && this._hass.states) || {})
+      .filter(([id, st]) => id.startsWith("sensor.") && st.attributes && st.attributes.device_class === "temperature")
+      .map(([id, st]) => [id, st.attributes.friendly_name || id]);
+    if (opt.outdoor_sensor && !temps.some(([id]) => id === opt.outdoor_sensor)) temps.push([opt.outdoor_sensor, opt.outdoor_sensor]);
+    temps.sort((a, b) => a[1].localeCompare(b[1]));
+    const outdoorOpts = `<option value="">${this._t("opt.room_own")}</option>`
+      + temps.map(([id, name]) => `<option value="${esc(id)}" ${opt.outdoor_sensor === id ? "selected" : ""}>${esc(name)}</option>`).join("");
     const langOpts = langs.map(([v, label]) => `<option value="${esc(v)}" ${opt.language === v ? "selected" : ""}>${esc(label)}</option>`).join("");
     el.innerHTML = `<div class="op">
       <div class="hd"><div class="pvt">${this._t("opt.title")}</div><button class="btn" data-o="close">${this._t("card.close")}</button></div>
@@ -396,6 +404,12 @@ class HeatControlCard extends HTMLElement {
       <div class="muted">${this._t("opt.mode_help")}</div>
       <div class="line"><span>${this._t("opt.time")}</span> <select id="opt-time">${timeOpts}</select></div>
       <div class="line"><span>${this._t("opt.language")}</span> <select id="opt-lang">${langOpts}</select></div>
+      <div class="sec">${this._t("opt.heating")}</div>
+      <div class="muted">${this._t("opt.heating_help")}</div>
+      <div class="line"><span>${this._t("opt.hysteresis")}</span>
+        <input type="number" id="opt-hyst" min="0.1" max="2" step="0.1" placeholder="${this._t("opt.room_own")}" value="${opt.hysteresis ?? ""}" style="width:110px"> °C
+        ${opt.hysteresis != null ? `<button class="btn" data-o="hyst-clear">${this._t("opt.clear")}</button>` : ""}</div>
+      <div class="line"><span>${this._t("opt.outdoor")}</span> <select id="opt-outdoor">${outdoorOpts}</select></div>
       <div class="sec">${this._t("opt.translation")}</div>
       <div class="muted">${this._t("opt.translation_help")}</div>
       <div class="line"><button class="btn" data-o="export-en">${this._t("opt.export_en")}</button>
@@ -418,7 +432,7 @@ class HeatControlCard extends HTMLElement {
   }
 
   async _setOptions(msg) {
-    const res = await this._hass.callWS({ type: "heat_control/options/set", ...msg });
+    const res = await this._hass.callWS({ type: "simple_heat_control/options/set", ...msg });
     return res;
   }
 
@@ -444,6 +458,8 @@ class HeatControlCard extends HTMLElement {
     try {
       if (t.id === "opt-time") this._applyTexts(await this._setOptions({ time_format: t.value }));
       else if (t.id === "opt-lang") this._applyTexts(await this._setOptions({ language: t.value }));
+      else if (t.id === "opt-hyst") this._applyTexts(await this._setOptions({ hysteresis: t.value === "" ? null : Number(t.value) }));
+      else if (t.id === "opt-outdoor") this._applyTexts(await this._setOptions({ outdoor_sensor: t.value || null }));
       else if (t.id === "opt-file" && t.files && t.files[0]) await this._loadTranslation(await t.files[0].text());
     } catch (err) { this._error = err.message || String(err); }
     this._showError();
@@ -460,17 +476,18 @@ class HeatControlCard extends HTMLElement {
         const want = act === "dry";
         if (want === this._dry()) return;
         if (!want && !confirm(this._tp("opt.confirm_live"))) return;
-        const res = await this._hass.callWS({ type: "heat_control/dry_run/set", dry_run: want });
+        const res = await this._hass.callWS({ type: "simple_heat_control/dry_run/set", dry_run: want });
         this._cfg.dry_run = res.dry_run;
         this._renderRows();
       } else if (act === "export-en" || act === "export-current") {
-        const all = await this._hass.callWS({ type: "heat_control/translations" });
+        const all = await this._hass.callWS({ type: "simple_heat_control/translations" });
         const code = this._cfg.language;
-        if (act === "export-en") download("heat-control-en.json", all.builtin.en);
-        else if (code === "custom" && all.custom) download(`heat-control-${all.custom._language || "custom"}.json`, all.custom);
-        else download(`heat-control-${code}.json`, all.builtin[code] || all.builtin.en);
+        if (act === "export-en") download("simple-heat-control-en.json", all.builtin.en);
+        else if (code === "custom" && all.custom) download(`simple-heat-control-${all.custom._language || "custom"}.json`, all.custom);
+        else download(`simple-heat-control-${code}.json`, all.builtin[code] || all.builtin.en);
         return;
       } else if (act === "load") await this._loadTranslation(this._opts.paste);
+      else if (act === "hyst-clear") this._applyTexts(await this._setOptions({ hysteresis: null }));
       else if (act === "remove") { this._applyTexts(await this._setOptions({ translation: null })); this._opts.msg = ""; }
     } catch (err) { this._error = err.message || String(err); }
     this._renderOptions();
@@ -609,7 +626,7 @@ class HeatControlCard extends HTMLElement {
     try {
       if (pv && pv.dataset.pv === "cancel") this._house = null;
       else if (pv) {
-        await this._hass.callWS({ type: "heat_control/preset/activate", name: h.to });
+        await this._hass.callWS({ type: "simple_heat_control/preset/activate", name: h.to });
         this._house = null;
         await this._load();
       } else {
@@ -619,16 +636,16 @@ class HeatControlCard extends HTMLElement {
         else if (act === "rename") { h.rename = p; h.renameTo = p; h.del = null; }
         else if (act === "delete") { h.del = p; h.rename = null; }
         else if (act === "rename-ok") {
-          const res = await this._hass.callWS({ type: "heat_control/preset/rename", name: p, new_name: h.renameTo || "" });
+          const res = await this._hass.callWS({ type: "simple_heat_control/preset/rename", name: p, new_name: h.renameTo || "" });
           if (this._edit && this._edit.preset === p) this._edit.preset = res.name;
           h.rename = null;
           await this._load();
         } else if (act === "delete-ok") {
-          await this._hass.callWS({ type: "heat_control/preset/delete", name: p });
+          await this._hass.callWS({ type: "simple_heat_control/preset/delete", name: p });
           h.del = null;
           await this._load();
         } else if (act === "create") {
-          const msg = { type: "heat_control/preset/create", name: h.name };
+          const msg = { type: "simple_heat_control/preset/create", name: h.name };
           if (h.from === "flat") msg.temperature = h.temp; else msg.copy_from = h.from.slice(5);
           await this._hass.callWS(msg);
           h.name = "";
@@ -841,7 +858,7 @@ class HeatControlCard extends HTMLElement {
       ok: n ? this._tp("replace.days", { n }) : this._tp("copyweek.nothing"),
       run: async () => {
         if (!n) return;
-        const res = await this._hass.callWS({ type: "heat_control/schedule/set", room_id: target.room_id, preset, schedule: ed.draft });
+        const res = await this._hass.callWS({ type: "simple_heat_control/schedule/set", room_id: target.room_id, preset, schedule: ed.draft });
         target.schedules = { ...(target.schedules || {}), [preset]: res.schedule };
         if (live) target.schedule = res.schedule;
         if (target.room_id === ed.roomId && preset === ed.preset) ed.saved = clone(res.schedule);
@@ -863,7 +880,7 @@ class HeatControlCard extends HTMLElement {
       rows: DAYS.map((d) => ({ label: this._d(d), before: this._week(room, room.preset)[d], after: ed.saved[d] })),
       ok: this._tp("use.ok", { preset: ed.preset }),
       run: async () => {
-        await this._hass.callWS({ type: "heat_control/preset/activate", name: ed.preset, room_id: room.room_id });
+        await this._hass.callWS({ type: "simple_heat_control/preset/activate", name: ed.preset, room_id: room.room_id });
         ed.notice = this._tp("use.done", { room: room.name, preset: ed.preset });
         await this._load();
       },
@@ -929,16 +946,16 @@ class HeatControlCard extends HTMLElement {
       else if (act === "use") this._usePresetPreview();
       else if (act === "revert") this._guard(() => { ed.draft = clone(ed.saved); });
       else if (act === "save") {
-        const res = await this._hass.callWS({ type: "heat_control/schedule/set", room_id: room.room_id, preset: ed.preset, schedule: ed.draft });
+        const res = await this._hass.callWS({ type: "simple_heat_control/schedule/set", room_id: room.room_id, preset: ed.preset, schedule: ed.draft });
         room.schedules = { ...(room.schedules || {}), [ed.preset]: res.schedule };
         if (room.preset === ed.preset) room.schedule = res.schedule;
         ed.saved = clone(res.schedule);
         ed.draft = clone(res.schedule);
         ed.notice = this._tp("ed.saved", { preset: ed.preset });
       }
-      else if (act === "ov-next") await this._hass.callWS({ type: "heat_control/override/set", room_id: room.room_id, temperature: ovt() });
-      else if (act === "ov-forever") await this._hass.callWS({ type: "heat_control/override/set", room_id: room.room_id, temperature: ovt(), until: null });
-      else if (act === "ov-clear") await this._hass.callWS({ type: "heat_control/override/clear", room_id: room.room_id });
+      else if (act === "ov-next") await this._hass.callWS({ type: "simple_heat_control/override/set", room_id: room.room_id, temperature: ovt() });
+      else if (act === "ov-forever") await this._hass.callWS({ type: "simple_heat_control/override/set", room_id: room.room_id, temperature: ovt(), until: null });
+      else if (act === "ov-clear") await this._hass.callWS({ type: "simple_heat_control/override/clear", room_id: room.room_id });
       else if (act === "power") {
         const st = this._hass.states[room.climate];
         await this._hass.callService("climate", "set_hvac_mode", { entity_id: room.climate, hvac_mode: st && st.state === "off" ? "heat" : "off" });
@@ -951,8 +968,8 @@ class HeatControlCard extends HTMLElement {
   }
 }
 
-if (!customElements.get("heat-control-card")) {
-  customElements.define("heat-control-card", HeatControlCard);
+if (!customElements.get("simple-heat-control-card")) {
+  customElements.define("simple-heat-control-card", SimpleHeatControlCard);
   window.customCards = window.customCards || [];
-  window.customCards.push({ type: "heat-control-card", name: "Heat Control", description: "Room heating timeline, reasons, presets and schedule editor" });
+  window.customCards.push({ type: "simple-heat-control-card", name: "Simple Heat Control", description: "Room heating timeline, reasons, presets and schedule editor" });
 }

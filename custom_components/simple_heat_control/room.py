@@ -14,13 +14,14 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_CLOSE_WHEN_SATISFIED, CONF_HYSTERESIS, CONF_NAME, CONF_OUTDOOR_SENSOR, CONF_REGULATION,
-    CONF_RELAY, CONF_STALE_MINUTES, CONF_TEMP_SENSOR, CONF_TRV, CONF_VALVE_POSITION,
-    DEFAULT_CLOSE_WHEN_SATISFIED, DEFAULT_HYSTERESIS, DEFAULT_REGULATION, DEFAULT_STALE_MINUTES,
-    REGULATION_PERIOD_MIN, TICK_SECONDS,
+    CONF_RELAY, CONF_SENSOR_MODE, CONF_STALE_MINUTES, CONF_TEMP_SENSOR, CONF_TRV, CONF_VALVE_POSITION,
+    DEFAULT_CLOSE_WHEN_SATISFIED, DEFAULT_HYSTERESIS, DEFAULT_REGULATION, DEFAULT_SENSOR_MODE,
+    DEFAULT_STALE_MINUTES, REGULATION_PERIOD_MIN, TICK_SECONDS,
 )
 from .demand import decide, fmt
 from .regulation import Regulator, Result, round_to_step
 from .schedule import ScheduleState, state_at
+from .sensors import combine
 
 if TYPE_CHECKING:
     from .hub import Hub
@@ -45,12 +46,16 @@ class RoomController:
         self.hub = hub
         self.room_id = room_id
         self.name: str = options[CONF_NAME]
-        self.temp_sensor: str = options[CONF_TEMP_SENSOR]
+        sensors = options[CONF_TEMP_SENSOR]
+        # one or more room sensors; older entries stored a single entity id
+        self.temp_sensors: list[str] = [sensors] if isinstance(sensors, str) else list(sensors)
+        self.sensor_mode: str = options.get(CONF_SENSOR_MODE, DEFAULT_SENSOR_MODE)
         self.trv: str = options[CONF_TRV]
         self.valve_sensor: str | None = options.get(CONF_VALVE_POSITION) or None
         self.relay: str | None = options.get(CONF_RELAY) or None
-        self.outdoor_sensor: str | None = options.get(CONF_OUTDOOR_SENSOR) or None
-        self.hysteresis: float = float(options.get(CONF_HYSTERESIS, DEFAULT_HYSTERESIS))
+        # the room's own values; while the house sets one in Options, the house value is used
+        self.own_outdoor_sensor: str | None = options.get(CONF_OUTDOOR_SENSOR) or None
+        self.own_hysteresis: float = float(options.get(CONF_HYSTERESIS, DEFAULT_HYSTERESIS))
         self.close_when_satisfied: bool = options.get(CONF_CLOSE_WHEN_SATISFIED, DEFAULT_CLOSE_WHEN_SATISFIED)
         self.stale_minutes: float = float(options.get(CONF_STALE_MINUTES, DEFAULT_STALE_MINUTES))
         self.regulator = Regulator(options.get(CONF_REGULATION, DEFAULT_REGULATION))
@@ -61,6 +66,7 @@ class RoomController:
         self.reason = hub.t("reason.starting")
         self.room_temp: float | None = None
         self.sensor_age_min: float | None = None
+        self.sensor_readings: list[dict] = []
         self.stale = False
         self.outdoor_temp: float | None = None
         self.schedule_state: ScheduleState | None = None
@@ -84,7 +90,8 @@ class RoomController:
 
     # ---- lifecycle -------------------------------------------------------------------------
     async def async_start(self) -> None:
-        watched = [e for e in (self.temp_sensor, self.trv, self.valve_sensor, self.outdoor_sensor, self.relay) if e]
+        # a house outdoor sensor isn't watched: the minute tick reads it, which is often enough
+        watched = [e for e in (*self.temp_sensors, self.trv, self.valve_sensor, self.own_outdoor_sensor, self.relay) if e]
         self._unsubs.append(async_track_state_change_event(self.hass, watched, self._on_state_change))
         self._unsubs.append(async_track_time_interval(self.hass, self._on_tick, timedelta(seconds=TICK_SECONDS)))
         if self.hass.state is CoreState.running:
@@ -116,7 +123,7 @@ class RoomController:
     def _on_state_change(self, event: Event) -> None:
         entity_id = event.data["entity_id"]
         # our own TRV/relay writes come back as state changes; only re-run the logic for inputs
-        if entity_id in (self.temp_sensor, self.outdoor_sensor):
+        if entity_id in self.temp_sensors or entity_id == self.own_outdoor_sensor:
             self.hass.async_create_task(self.async_evaluate())
         else:
             self._read_outputs()
@@ -158,6 +165,34 @@ class RoomController:
         self._notify()
         await self.hub.async_update_boiler()
 
+    @property
+    def hysteresis(self) -> float:
+        house = self.hub.options.get("hysteresis")
+        return float(house) if house is not None else self.own_hysteresis
+
+    @property
+    def outdoor_sensor(self) -> str | None:
+        return self.hub.options.get("outdoor_sensor") or self.own_outdoor_sensor
+
+    def _read_room_sensors(self, now: datetime) -> None:
+        readings = []
+        for entity_id in self.temp_sensors:
+            state = self.hass.states.get(entity_id)
+            age = None
+            if state is not None:
+                seen = getattr(state, "last_reported", None) or state.last_updated
+                age = round((now - seen).total_seconds() / 60, 1)
+            readings.append((_float(state), age))
+        result = combine(readings, self.sensor_mode, self.stale_minutes)
+        self.room_temp = result.value
+        self.stale = result.value is None
+        self.sensor_readings = [{"entity_id": e, "value": v, "age_min": a, "fresh": i in result.fresh,
+                                 "used": i in result.used}
+                                for i, (e, (v, a)) in enumerate(zip(self.temp_sensors, readings))]
+        # the oldest reading the value comes from; when all are stale, the newest there is
+        ages = [readings[i][1] for i in result.used] or [a for _, a in readings if a is not None]
+        self.sensor_age_min = (max(ages) if result.used else min(ages)) if ages else None
+
     async def _evaluate(self, force: bool) -> None:
         now = dt_util.now()
         self.last_evaluated = now
@@ -170,14 +205,7 @@ class RoomController:
                 self.override = None
         self.target = float(self.override["temperature"]) if self.override else self.schedule_state.target
 
-        sensor = self.hass.states.get(self.temp_sensor)
-        self.room_temp = _float(sensor)
-        if sensor is not None:
-            seen = getattr(sensor, "last_reported", None) or sensor.last_updated
-            self.sensor_age_min = round((now - seen).total_seconds() / 60, 1)
-        else:
-            self.sensor_age_min = None
-        self.stale = self.room_temp is None or (self.sensor_age_min or 0) > self.stale_minutes
+        self._read_room_sensors(now)
         self.outdoor_temp = _float(self.hass.states.get(self.outdoor_sensor)) if self.outdoor_sensor else None
 
         trv = self.hass.states.get(self.trv)
@@ -193,7 +221,8 @@ class RoomController:
         elif self.stale:
             # without a room reading, let the TRV regulate on its own sensor at the plain target
             self.demand = bool(trv and trv.attributes.get("hvac_action") == "heating")
-            age = (t("reason.stale_no_reading") if self.room_temp is None
+            age = (t("reason.stale_no_reading") if self.sensor_age_min is None
+                   or all(r["value"] is None for r in self.sensor_readings)
                    else t("reason.stale_age", minutes=f"{self.sensor_age_min:.0f}"))
             self.reason = t("reason.stale", age=age, target=fmt(self.target))
             self.setpoint = self.target
@@ -201,6 +230,10 @@ class RoomController:
         else:
             self.demand, key, params = decide(was_demand, self.room_temp, self.target, self.hysteresis)
             self.reason = t(key, **params)
+            stale_count = sum(not r["fresh"] for r in self.sensor_readings)
+            if stale_count:
+                self.reason = t("reason.sensors_partial", reason=self.reason, stale=stale_count,
+                                total=len(self.sensor_readings))
             if self.demand or not self.close_when_satisfied:
                 due = (force or self.demand != was_demand or self._last_regulation is None
                        or now - self._last_regulation >= timedelta(minutes=REGULATION_PERIOD_MIN))
@@ -311,7 +344,11 @@ class RoomController:
             "next_change": s.next_change.isoformat() if s and s.next_change else None,
             "next_target": s.next_target if s else None,
             "override": self.override,
-            "room_sensor": self.temp_sensor,
+            "room_sensors": self.temp_sensors,
+            "sensor_mode": self.sensor_mode,
+            "sensor_readings": self.sensor_readings,
+            "hysteresis": self.hysteresis,
+            "outdoor_sensor": self.outdoor_sensor,
             "sensor_age_min": self.sensor_age_min,
             "sensor_stale": self.stale,
             "outdoor_temperature": self.outdoor_temp,

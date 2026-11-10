@@ -1,11 +1,11 @@
-"""Constants for Heat Control."""
+"""Constants for Simple Heat Control."""
 
-DOMAIN = "heat_control"
+DOMAIN = "simple_heat_control"
 STORAGE_KEY = DOMAIN
 STORAGE_VERSION = 1
 
-FRONTEND_URL = "/heat_control_static"
-CARD_FILE = "heat-control-card.js"
+FRONTEND_URL = "/simple_heat_control_static"
+CARD_FILE = "simple-heat-control-card.js"
 
 # config entry type
 CONF_ENTRY_TYPE = "entry_type"
@@ -23,11 +23,13 @@ CONF_REGULATION = "regulation"
 CONF_HYSTERESIS = "hysteresis"
 CONF_CLOSE_WHEN_SATISFIED = "close_when_satisfied"
 CONF_STALE_MINUTES = "stale_minutes"
+CONF_SENSOR_MODE = "sensor_mode"  # how several room sensors are combined, see sensors.py
 
 DEFAULT_REGULATION = "medium"
 DEFAULT_HYSTERESIS = 0.5
 DEFAULT_CLOSE_WHEN_SATISFIED = True
 DEFAULT_STALE_MINUTES = 180
+DEFAULT_SENSOR_MODE = "average"
 DEFAULT_SCHEDULE_TEMP = 20.0
 
 # boiler options

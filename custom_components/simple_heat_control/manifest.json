@@ -1,6 +1,6 @@
 {
-  "domain": "heat_control",
-  "name": "Heat Control",
+  "domain": "simple_heat_control",
+  "name": "Simple Heat Control",
   "after_dependencies": [
     "mypyllant"
   ],
@@ -17,5 +17,5 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/wipeer/simple-heat-control/issues",
   "requirements": [],
-  "version": "0.5.1"
+  "version": "0.6.0"
 }

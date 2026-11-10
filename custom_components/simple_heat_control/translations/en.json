@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Heat Control",
+        "title": "Simple Heat Control",
         "menu_options": {
           "room": "Add a room",
           "boiler": "Set up the boiler"
@@ -12,7 +12,8 @@
         "title": "Add a room",
         "data": {
           "name": "Name",
-          "temperature_sensor": "Room temperature sensor",
+          "temperature_sensor": "Room temperature sensors",
+          "sensor_mode": "With several sensors, use",
           "trv": "Radiator valve (TRV)",
           "valve_position_sensor": "Valve position sensor",
           "relay": "Convector fan relay",
@@ -23,12 +24,13 @@
           "stale_minutes": "Room sensor is stale after"
         },
         "data_description": {
-          "temperature_sensor": "The sensor in the room, away from the radiator. Heating decisions use this.",
+          "temperature_sensor": "One or more sensors in the room, away from the radiator. Heating decisions use these.",
+          "sensor_mode": "How several sensors make one room temperature. Stale or unavailable sensors are left out. Backup: the first sensor counts; the others stand in while it is stale.",
           "valve_position_sensor": "Optional. Shown on the card.",
           "relay": "Optional. Switched on while the room asks for heat.",
-          "outdoor_sensor": "Optional. Used by the regulation, like Versatile Thermostat.",
+          "outdoor_sensor": "Optional. Used by the regulation, like Versatile Thermostat. Ignored while an outdoor sensor is set for the whole house in the card's Options.",
           "regulation": "How far the TRV setpoint is raised to make up for the TRV sitting next to the radiator. Same settings as Versatile Thermostat.",
-          "hysteresis": "Heating starts this much below the target and stops at the target.",
+          "hysteresis": "Heating starts this much below the target and stops at the target. Ignored while a hysteresis is set for the whole house in the card's Options.",
           "close_when_satisfied": "Send the TRV its minimum setpoint while the room needs no heat.",
           "stale_minutes": "With no update for this long, the TRV regulates on its own sensor."
         }
@@ -56,7 +58,8 @@
       "init": {
         "title": "Settings",
         "data": {
-          "temperature_sensor": "Room temperature sensor",
+          "temperature_sensor": "Room temperature sensors",
+          "sensor_mode": "With several sensors, use",
           "trv": "Radiator valve (TRV)",
           "valve_position_sensor": "Valve position sensor",
           "relay": "Convector fan relay",
@@ -69,6 +72,17 @@
           "quick_veto_temperature": "Quick veto temperature",
           "quick_veto_hours": "Quick veto duration",
           "boiler_status_sensor": "Boiler status sensor"
+        },
+        "data_description": {
+          "temperature_sensor": "One or more sensors in the room, away from the radiator. Heating decisions use these.",
+          "sensor_mode": "How several sensors make one room temperature. Stale or unavailable sensors are left out. Backup: the first sensor counts; the others stand in while it is stale.",
+          "valve_position_sensor": "Optional. Shown on the card.",
+          "relay": "Optional. Switched on while the room asks for heat.",
+          "outdoor_sensor": "Optional. Used by the regulation, like Versatile Thermostat. Ignored while an outdoor sensor is set for the whole house in the card's Options.",
+          "regulation": "How far the TRV setpoint is raised to make up for the TRV sitting next to the radiator. Same settings as Versatile Thermostat.",
+          "hysteresis": "Heating starts this much below the target and stops at the target. Ignored while a hysteresis is set for the whole house in the card's Options.",
+          "close_when_satisfied": "Send the TRV its minimum setpoint while the room needs no heat.",
+          "stale_minutes": "With no update for this long, the TRV regulates on its own sensor."
         }
       }
     }
@@ -80,6 +94,15 @@
         "light": "Light",
         "medium": "Medium",
         "strong": "Strong"
+      }
+    },
+    "sensor_mode": {
+      "options": {
+        "average": "Average",
+        "coldest": "Coldest",
+        "warmest": "Warmest",
+        "median": "Median",
+        "backup": "Backup (first sensor, others stand in)"
       }
     }
   },
