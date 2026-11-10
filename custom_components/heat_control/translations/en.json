@@ -1,0 +1,112 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Heat Control",
+        "menu_options": {
+          "room": "Add a room",
+          "boiler": "Set up the boiler"
+        }
+      },
+      "room": {
+        "title": "Add a room",
+        "data": {
+          "name": "Name",
+          "temperature_sensor": "Room temperature sensor",
+          "trv": "Radiator valve (TRV)",
+          "valve_position_sensor": "Valve position sensor",
+          "relay": "Convector fan relay",
+          "outdoor_sensor": "Outdoor temperature sensor",
+          "regulation": "TRV setpoint regulation",
+          "hysteresis": "Hysteresis",
+          "close_when_satisfied": "Close the valve when the room is warm",
+          "stale_minutes": "Room sensor is stale after"
+        },
+        "data_description": {
+          "temperature_sensor": "The sensor in the room, away from the radiator. Heating decisions use this.",
+          "valve_position_sensor": "Optional. Shown on the card.",
+          "relay": "Optional. Switched on while the room asks for heat.",
+          "outdoor_sensor": "Optional. Used by the regulation, like Versatile Thermostat.",
+          "regulation": "How far the TRV setpoint is raised to make up for the TRV sitting next to the radiator. Same settings as Versatile Thermostat.",
+          "hysteresis": "Heating starts this much below the target and stops at the target.",
+          "close_when_satisfied": "Send the TRV its minimum setpoint while the room needs no heat.",
+          "stale_minutes": "With no update for this long, the TRV regulates on its own sensor."
+        }
+      },
+      "boiler": {
+        "title": "Boiler",
+        "data": {
+          "boiler_climate": "Boiler climate entity (myVaillant)",
+          "quick_veto_temperature": "Quick veto temperature",
+          "quick_veto_hours": "Quick veto duration",
+          "boiler_status_sensor": "Boiler status sensor"
+        },
+        "data_description": {
+          "boiler_climate": "While any room asks for heat, a quick veto is set on this zone; it is cancelled when no room asks.",
+          "boiler_status_sensor": "Optional. Shown on the card, e.g. the zone's current special function."
+        }
+      }
+    },
+    "abort": {
+      "boiler_exists": "The boiler is already set up. Change it under Configure."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings",
+        "data": {
+          "temperature_sensor": "Room temperature sensor",
+          "trv": "Radiator valve (TRV)",
+          "valve_position_sensor": "Valve position sensor",
+          "relay": "Convector fan relay",
+          "outdoor_sensor": "Outdoor temperature sensor",
+          "regulation": "TRV setpoint regulation",
+          "hysteresis": "Hysteresis",
+          "close_when_satisfied": "Close the valve when the room is warm",
+          "stale_minutes": "Room sensor is stale after",
+          "boiler_climate": "Boiler climate entity (myVaillant)",
+          "quick_veto_temperature": "Quick veto temperature",
+          "quick_veto_hours": "Quick veto duration",
+          "boiler_status_sensor": "Boiler status sensor"
+        }
+      }
+    }
+  },
+  "selector": {
+    "regulation": {
+      "options": {
+        "off": "Off (send the target as is)",
+        "light": "Light",
+        "medium": "Medium",
+        "strong": "Strong"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "room_demand": {
+        "name": "Heat demand"
+      },
+      "boiler_demand": {
+        "name": "Heat demand"
+      }
+    },
+    "switch": {
+      "boiler_control": {
+        "name": "Boiler control"
+      },
+      "dry_run": {
+        "name": "Dry run"
+      }
+    },
+    "select": {
+      "preset": {
+        "name": "Preset"
+      },
+      "house_preset": {
+        "name": "House preset"
+      }
+    }
+  }
+}

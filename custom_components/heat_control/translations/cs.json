@@ -1,0 +1,112 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Heat Control",
+        "menu_options": {
+          "room": "Přidat místnost",
+          "boiler": "Nastavit kotel"
+        }
+      },
+      "room": {
+        "title": "Přidat místnost",
+        "data": {
+          "name": "Název",
+          "temperature_sensor": "Teplotní čidlo v místnosti",
+          "trv": "Termostatická hlavice (TRV)",
+          "valve_position_sensor": "Čidlo otevření ventilu",
+          "relay": "Relé ventilátoru konvektoru",
+          "outdoor_sensor": "Venkovní teplotní čidlo",
+          "regulation": "Regulace teploty pro hlavici",
+          "hysteresis": "Hystereze",
+          "close_when_satisfied": "Zavřít ventil, když je v místnosti teplo",
+          "stale_minutes": "Čidlo v místnosti neodpovídá po"
+        },
+        "data_description": {
+          "temperature_sensor": "Čidlo v místnosti, dál od radiátoru. Podle něj se rozhoduje o topení.",
+          "valve_position_sensor": "Nepovinné. Zobrazuje se na kartě.",
+          "relay": "Nepovinné. Zapnuté, dokud místnost chce teplo.",
+          "outdoor_sensor": "Nepovinné. Používá ho regulace, stejně jako Versatile Thermostat.",
+          "regulation": "O kolik se hlavici zvýší nastavená teplota, protože sedí u radiátoru a měří víc. Stejná nastavení jako ve Versatile Thermostat.",
+          "hysteresis": "Topit se začne o tolik pod cílovou teplotou a přestane se při jejím dosažení.",
+          "close_when_satisfied": "Dokud místnost nepotřebuje teplo, hlavice dostane svou minimální teplotu.",
+          "stale_minutes": "Když čidlo tak dlouho nepošle hodnotu, hlavice reguluje podle svého vlastního čidla."
+        }
+      },
+      "boiler": {
+        "title": "Kotel",
+        "data": {
+          "boiler_climate": "Entita kotle (myVaillant)",
+          "quick_veto_temperature": "Teplota quick veto",
+          "quick_veto_hours": "Délka quick veto",
+          "boiler_status_sensor": "Čidlo stavu kotle"
+        },
+        "data_description": {
+          "boiler_climate": "Dokud některá místnost chce teplo, nastaví se na této zóně quick veto; zruší se, když už žádná nechce.",
+          "boiler_status_sensor": "Nepovinné. Zobrazuje se na kartě, např. aktuální speciální funkce zóny."
+        }
+      }
+    },
+    "abort": {
+      "boiler_exists": "Kotel už je nastavený. Změníte ho v jeho Nastavení."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Nastavení",
+        "data": {
+          "temperature_sensor": "Teplotní čidlo v místnosti",
+          "trv": "Termostatická hlavice (TRV)",
+          "valve_position_sensor": "Čidlo otevření ventilu",
+          "relay": "Relé ventilátoru konvektoru",
+          "outdoor_sensor": "Venkovní teplotní čidlo",
+          "regulation": "Regulace teploty pro hlavici",
+          "hysteresis": "Hystereze",
+          "close_when_satisfied": "Zavřít ventil, když je v místnosti teplo",
+          "stale_minutes": "Čidlo v místnosti neodpovídá po",
+          "boiler_climate": "Entita kotle (myVaillant)",
+          "quick_veto_temperature": "Teplota quick veto",
+          "quick_veto_hours": "Délka quick veto",
+          "boiler_status_sensor": "Čidlo stavu kotle"
+        }
+      }
+    }
+  },
+  "selector": {
+    "regulation": {
+      "options": {
+        "off": "Vypnuto (poslat cílovou teplotu beze změny)",
+        "light": "Slabá",
+        "medium": "Střední",
+        "strong": "Silná"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "room_demand": {
+        "name": "Požadavek na teplo"
+      },
+      "boiler_demand": {
+        "name": "Požadavek na teplo"
+      }
+    },
+    "switch": {
+      "boiler_control": {
+        "name": "Řízení kotle"
+      },
+      "dry_run": {
+        "name": "Zkušební režim"
+      }
+    },
+    "select": {
+      "preset": {
+        "name": "Předvolba"
+      },
+      "house_preset": {
+        "name": "Předvolba domu"
+      }
+    }
+  }
+}
