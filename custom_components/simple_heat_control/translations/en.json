@@ -20,6 +20,7 @@
           "outdoor_sensor": "Outdoor temperature sensor",
           "regulation": "TRV setpoint regulation",
           "hysteresis": "Hysteresis",
+          "smart_heating": "Smart heating",
           "close_when_satisfied": "Close the valve when the room is warm",
           "stale_minutes": "Room sensor is stale after"
         },
@@ -27,10 +28,11 @@
           "temperature_sensor": "One or more sensors in the room, away from the radiator. Heating decisions use these.",
           "sensor_mode": "How several sensors make one room temperature. Stale or unavailable sensors are left out. Backup: the first sensor counts; the others stand in while it is stale.",
           "valve_position_sensor": "Optional. Shown on the card.",
-          "relay": "Optional. Switched on while the room asks for heat.",
+          "relay": "Optional. Switched on while the room heats, smart heating included.",
           "outdoor_sensor": "Optional. Used by the regulation, like Versatile Thermostat. Ignored while an outdoor sensor is set for the whole house in the card's Options.",
           "regulation": "How far the TRV setpoint is raised to make up for the TRV sitting next to the radiator. Same settings as Versatile Thermostat.",
           "hysteresis": "Heating starts this much below the target and stops at the target. Ignored while a hysteresis is set for the whole house in the card's Options.",
+          "smart_heating": "While the boiler heats for another room, this room also takes heat, up to this much above its target. It never turns the boiler on by itself. 0 = off. Ignored while smart heating is set for the whole house in the card's Options.",
           "close_when_satisfied": "Send the TRV its minimum setpoint while the room needs no heat.",
           "stale_minutes": "With no update for this long, the TRV regulates on its own sensor."
         }
@@ -66,6 +68,7 @@
           "outdoor_sensor": "Outdoor temperature sensor",
           "regulation": "TRV setpoint regulation",
           "hysteresis": "Hysteresis",
+          "smart_heating": "Smart heating",
           "close_when_satisfied": "Close the valve when the room is warm",
           "stale_minutes": "Room sensor is stale after",
           "boiler_climate": "Boiler climate entity (myVaillant)",
@@ -77,10 +80,11 @@
           "temperature_sensor": "One or more sensors in the room, away from the radiator. Heating decisions use these.",
           "sensor_mode": "How several sensors make one room temperature. Stale or unavailable sensors are left out. Backup: the first sensor counts; the others stand in while it is stale.",
           "valve_position_sensor": "Optional. Shown on the card.",
-          "relay": "Optional. Switched on while the room asks for heat.",
+          "relay": "Optional. Switched on while the room heats, smart heating included.",
           "outdoor_sensor": "Optional. Used by the regulation, like Versatile Thermostat. Ignored while an outdoor sensor is set for the whole house in the card's Options.",
           "regulation": "How far the TRV setpoint is raised to make up for the TRV sitting next to the radiator. Same settings as Versatile Thermostat.",
           "hysteresis": "Heating starts this much below the target and stops at the target. Ignored while a hysteresis is set for the whole house in the card's Options.",
+          "smart_heating": "While the boiler heats for another room, this room also takes heat, up to this much above its target. It never turns the boiler on by itself. 0 = off. Ignored while smart heating is set for the whole house in the card's Options.",
           "close_when_satisfied": "Send the TRV its minimum setpoint while the room needs no heat.",
           "stale_minutes": "With no update for this long, the TRV regulates on its own sensor."
         }

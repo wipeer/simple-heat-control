@@ -66,7 +66,7 @@ class RoomClimate(ClimateEntity, RestoreEntity):
     def hvac_action(self) -> HVACAction:
         if not self.room.hvac_on:
             return HVACAction.OFF
-        return HVACAction.HEATING if self.room.demand else HVACAction.IDLE
+        return HVACAction.HEATING if self.room.demand or self.room.joining else HVACAction.IDLE
 
     @property
     def current_temperature(self) -> float | None:

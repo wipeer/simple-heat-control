@@ -14,11 +14,11 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_CLOSE_WHEN_SATISFIED, CONF_HYSTERESIS, CONF_NAME, CONF_OUTDOOR_SENSOR, CONF_REGULATION,
-    CONF_RELAY, CONF_SENSOR_MODE, CONF_STALE_MINUTES, CONF_TEMP_SENSOR, CONF_TRV, CONF_VALVE_POSITION,
-    DEFAULT_CLOSE_WHEN_SATISFIED, DEFAULT_HYSTERESIS, DEFAULT_REGULATION, DEFAULT_SENSOR_MODE,
-    DEFAULT_STALE_MINUTES, REGULATION_PERIOD_MIN, TICK_SECONDS,
+    CONF_RELAY, CONF_SENSOR_MODE, CONF_SMART_HEATING, CONF_STALE_MINUTES, CONF_TEMP_SENSOR, CONF_TRV,
+    CONF_VALVE_POSITION, DEFAULT_CLOSE_WHEN_SATISFIED, DEFAULT_HYSTERESIS, DEFAULT_REGULATION,
+    DEFAULT_SENSOR_MODE, DEFAULT_SMART_HEATING, DEFAULT_STALE_MINUTES, REGULATION_PERIOD_MIN, TICK_SECONDS,
 )
-from .demand import decide, fmt
+from .demand import decide, fmt, join
 from .regulation import Regulator, Result, round_to_step
 from .schedule import ScheduleState, state_at
 from .sensors import combine
@@ -56,13 +56,15 @@ class RoomController:
         # the room's own values; while the house sets one in Options, the house value is used
         self.own_outdoor_sensor: str | None = options.get(CONF_OUTDOOR_SENSOR) or None
         self.own_hysteresis: float = float(options.get(CONF_HYSTERESIS, DEFAULT_HYSTERESIS))
+        self.own_smart_heating: float = float(options.get(CONF_SMART_HEATING, DEFAULT_SMART_HEATING))
         self.close_when_satisfied: bool = options.get(CONF_CLOSE_WHEN_SATISFIED, DEFAULT_CLOSE_WHEN_SATISFIED)
         self.stale_minutes: float = float(options.get(CONF_STALE_MINUTES, DEFAULT_STALE_MINUTES))
         self.regulator = Regulator(options.get(CONF_REGULATION, DEFAULT_REGULATION))
 
         # state shown in HA
         self.hvac_on = True
-        self.demand = False
+        self.demand = False  # asks the boiler for heat
+        self.joining = False  # smart heating: takes heat the boiler makes for other rooms
         self.reason = hub.t("reason.starting")
         self.room_temp: float | None = None
         self.sensor_age_min: float | None = None
@@ -171,6 +173,11 @@ class RoomController:
         return float(house) if house is not None else self.own_hysteresis
 
     @property
+    def smart_heating(self) -> float:
+        house = self.hub.options.get("smart_heating")
+        return float(house) if house is not None else self.own_smart_heating
+
+    @property
     def outdoor_sensor(self) -> str | None:
         return self.hub.options.get("outdoor_sensor") or self.own_outdoor_sensor
 
@@ -211,6 +218,8 @@ class RoomController:
         trv = self.hass.states.get(self.trv)
         self._read_outputs()
         was_demand = self.demand
+        was_joining = self.joining
+        self.joining = False
         t = self.hub.t
 
         if not self.hvac_on:
@@ -229,27 +238,40 @@ class RoomController:
             await self._apply_trv(trv, "heat", self.setpoint, force)
         else:
             self.demand, key, params = decide(was_demand, self.room_temp, self.target, self.hysteresis)
+            regulate_to = self.target
+            if not self.demand:
+                others = self.hub.rooms_asking(exclude=self.room_id)
+                extra = self.smart_heating
+                self.joining = join(was_demand or was_joining, self.room_temp, self.target, extra,
+                                    self.hysteresis, bool(others))
+                if self.joining:
+                    regulate_to = self.target + extra
+                    key = "reason.join"
+                    params = {**params, "top": fmt(regulate_to), "rooms": ", ".join(others)}
             self.reason = t(key, **params)
             stale_count = sum(not r["fresh"] for r in self.sensor_readings)
             if stale_count:
                 self.reason = t("reason.sensors_partial", reason=self.reason, stale=stale_count,
                                 total=len(self.sensor_readings))
-            if self.demand or not self.close_when_satisfied:
-                due = (force or self.demand != was_demand or self._last_regulation is None
+            heating = self.demand or self.joining
+            if heating or not self.close_when_satisfied:
+                due = (force or self.demand != was_demand or self.joining != was_joining
+                       or self._last_regulation is None
                        or now - self._last_regulation >= timedelta(minutes=REGULATION_PERIOD_MIN))
                 if due or self.setpoint is None:
                     periods = 1.0
                     if self._last_regulation is not None:
                         periods = (now - self._last_regulation).total_seconds() / 60 / REGULATION_PERIOD_MIN
-                    self.regulation = self.regulator.calculate(self.target, self.room_temp, self.outdoor_temp, periods)
+                    self.regulation = self.regulator.calculate(regulate_to, self.room_temp, self.outdoor_temp, periods)
                     self._last_regulation = now
                     self.setpoint = self.regulation.setpoint
             else:
                 self.setpoint = self._trv_min(trv)
                 self.reason = t("reason.valve_closed", reason=self.reason)
-            await self._apply_trv(trv, "heat", self.setpoint, force or self.demand != was_demand)
+            await self._apply_trv(trv, "heat", self.setpoint,
+                                  force or self.demand != was_demand or self.joining != was_joining)
 
-        await self._apply_relay(self.demand and self.hvac_on)
+        await self._apply_relay((self.demand or self.joining) and self.hvac_on)
 
     # ---- outputs ------------------------------------------------------------------------------
     @staticmethod
@@ -338,6 +360,7 @@ class RoomController:
             "room_id": self.room_id,
             "dry_run": self.hub.dry_run,
             "demand": self.demand,
+            "smart_heating_active": self.joining,
             "reason": self.reason,
             "preset": self.hub.active_preset(self.room_id),
             "schedule_target": s.target if s else None,
@@ -348,6 +371,7 @@ class RoomController:
             "sensor_mode": self.sensor_mode,
             "sensor_readings": self.sensor_readings,
             "hysteresis": self.hysteresis,
+            "smart_heating": self.smart_heating,
             "outdoor_sensor": self.outdoor_sensor,
             "sensor_age_min": self.sensor_age_min,
             "sensor_stale": self.stale,

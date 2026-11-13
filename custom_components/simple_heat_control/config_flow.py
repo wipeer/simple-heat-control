@@ -11,9 +11,10 @@ from homeassistant.helpers import selector as sel
 from .const import (
     CONF_BOILER_CLIMATE, CONF_BOILER_STATUS_SENSOR, CONF_CLOSE_WHEN_SATISFIED, CONF_ENTRY_TYPE,
     CONF_HYSTERESIS, CONF_NAME, CONF_OUTDOOR_SENSOR, CONF_REGULATION, CONF_RELAY, CONF_SENSOR_MODE,
-    CONF_STALE_MINUTES, CONF_TEMP_SENSOR, CONF_TRV, CONF_VALVE_POSITION, CONF_VETO_HOURS, CONF_VETO_TEMP,
-    DEFAULT_CLOSE_WHEN_SATISFIED, DEFAULT_HYSTERESIS, DEFAULT_REGULATION, DEFAULT_SENSOR_MODE,
-    DEFAULT_STALE_MINUTES, DEFAULT_VETO_HOURS, DEFAULT_VETO_TEMP, DOMAIN, ENTRY_BOILER, ENTRY_ROOM,
+    CONF_SMART_HEATING, CONF_STALE_MINUTES, CONF_TEMP_SENSOR, CONF_TRV, CONF_VALVE_POSITION, CONF_VETO_HOURS,
+    CONF_VETO_TEMP, DEFAULT_CLOSE_WHEN_SATISFIED, DEFAULT_HYSTERESIS, DEFAULT_REGULATION, DEFAULT_SENSOR_MODE,
+    DEFAULT_SMART_HEATING, DEFAULT_STALE_MINUTES, DEFAULT_VETO_HOURS, DEFAULT_VETO_TEMP, DOMAIN, ENTRY_BOILER,
+    ENTRY_ROOM,
 )
 from .sensors import MODES as SENSOR_MODES
 
@@ -48,6 +49,8 @@ def room_schema(d: dict, with_name: bool) -> vol.Schema:
                                      mode=sel.SelectSelectorMode.DROPDOWN)),
         vol.Required(CONF_HYSTERESIS, default=d.get(CONF_HYSTERESIS, DEFAULT_HYSTERESIS)): sel.NumberSelector(
             sel.NumberSelectorConfig(min=0.1, max=2.0, step=0.1, unit_of_measurement="°C", mode=sel.NumberSelectorMode.BOX)),
+        vol.Required(CONF_SMART_HEATING, default=d.get(CONF_SMART_HEATING, DEFAULT_SMART_HEATING)): sel.NumberSelector(
+            sel.NumberSelectorConfig(min=0, max=2.0, step=0.1, unit_of_measurement="°C", mode=sel.NumberSelectorMode.BOX)),
         vol.Required(CONF_CLOSE_WHEN_SATISFIED, default=d.get(CONF_CLOSE_WHEN_SATISFIED, DEFAULT_CLOSE_WHEN_SATISFIED)):
             sel.BooleanSelector(),
         vol.Required(CONF_STALE_MINUTES, default=d.get(CONF_STALE_MINUTES, DEFAULT_STALE_MINUTES)): sel.NumberSelector(

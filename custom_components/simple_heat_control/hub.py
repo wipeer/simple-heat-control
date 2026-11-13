@@ -10,8 +10,9 @@ from . import i18n, presets
 from .const import DEFAULT_SCHEDULE_TEMP, STORAGE_KEY, STORAGE_VERSION
 from .schedule import validate
 
-# hysteresis / outdoor_sensor: None = each room uses its own; a value = every room uses it
-DEFAULT_OPTIONS = {"time_format": "auto", "language": "auto", "hysteresis": None, "outdoor_sensor": None}
+# hysteresis / smart_heating / outdoor_sensor: None = each room uses its own; a value = every room uses it
+DEFAULT_OPTIONS = {"time_format": "auto", "language": "auto", "hysteresis": None, "smart_heating": None,
+                   "outdoor_sensor": None}
 
 if TYPE_CHECKING:
     from .boiler import BoilerController
@@ -31,6 +32,7 @@ class Hub:
         self.rooms: dict[str, RoomController] = {}
         self.boiler: BoilerController | None = None
         self.boiler_entry_id: str | None = None
+        self._asking: list[str] = []  # rooms asking for heat, as last seen by async_update_boiler
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
@@ -81,7 +83,8 @@ class Hub:
         self.t = i18n.Translator(self.strings(), self._builtin.get("en", {}))
 
     async def async_set_options(self, changes: dict) -> dict:
-        """Change the options named in `changes` (None clears hysteresis, outdoor_sensor and translation).
+        """Change the options named in `changes` (None clears hysteresis, smart_heating, outdoor_sensor
+        and translation).
 
         Returns the report on an uploaded translation (unknown and missing keys)."""
         report: dict = {}
@@ -93,6 +96,13 @@ class Hub:
                 if not 0.1 <= value <= 2.0:
                     raise ValueError("hysteresis is 0.1 to 2.0 °C")
             options["hysteresis"] = value
+        if "smart_heating" in changes:
+            value = changes["smart_heating"]
+            if value is not None:
+                value = round(float(value), 1)
+                if not 0.0 <= value <= 2.0:
+                    raise ValueError("smart heating is 0 to 2.0 °C")
+            options["smart_heating"] = value
         if "outdoor_sensor" in changes:
             entity_id = changes["outdoor_sensor"] or None
             if entity_id is not None and not entity_id.startswith("sensor."):
@@ -121,7 +131,7 @@ class Hub:
             self._data["options"]["language"] = language
         await self._async_save()
         self._use_language()
-        # reasons are text and hysteresis/outdoor change decisions: compute everything again
+        # reasons are text and hysteresis/smart heating/outdoor change decisions: compute everything again
         for room in self.rooms.values():
             await room.async_evaluate()
         if self.boiler is not None:
@@ -240,8 +250,19 @@ class Hub:
         await self._async_save()
 
     # ---- boiler ---------------------------------------------------------------------------------
+    def rooms_asking(self, exclude: str | None = None) -> list[str]:
+        """Names of the rooms that ask the boiler for heat (smart-heating rooms don't count)."""
+        return sorted(r.name for r in self.rooms.values() if r.demand and r.hvac_on and r.room_id != exclude)
+
     async def async_update_boiler(self) -> None:
+        asking = self.rooms_asking()
+        if asking != self._asking:
+            # smart heating in the other rooms depends on who asks: let them see it now, not in a minute.
+            # Their evaluation calls this again, but `asking` is unchanged then, so it stops there.
+            self._asking = asking
+            for room in list(self.rooms.values()):
+                if not room.demand:
+                    await room.async_evaluate()
         if self.boiler is None:
             return
-        asking = sorted(r.name for r in self.rooms.values() if r.demand and r.hvac_on)
         await self.boiler.async_set_demand(asking)

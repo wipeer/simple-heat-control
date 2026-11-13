@@ -202,6 +202,7 @@ async def ws_preset_activate(hass: HomeAssistant, connection: websocket_api.Acti
     vol.Optional("translation"): vol.Any(None, dict),  # null removes the custom translation
     # house-wide values every room uses; null = each room uses its own
     vol.Optional("hysteresis"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0.1, max=2.0))),
+    vol.Optional("smart_heating"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0))),
     vol.Optional("outdoor_sensor"): vol.Any(None, str),
 })
 @websocket_api.require_admin
@@ -209,7 +210,8 @@ async def ws_preset_activate(hass: HomeAssistant, connection: websocket_api.Acti
 async def ws_options_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     hub = _hub(hass)
     try:
-        changes = {k: msg[k] for k in ("time_format", "language", "translation", "hysteresis", "outdoor_sensor")
+        changes = {k: msg[k] for k in ("time_format", "language", "translation", "hysteresis", "smart_heating",
+                                                  "outdoor_sensor")
                    if k in msg}
         report = await hub.async_set_options(changes)
     except ValueError as err:

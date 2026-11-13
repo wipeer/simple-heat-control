@@ -24,12 +24,14 @@ CONF_HYSTERESIS = "hysteresis"
 CONF_CLOSE_WHEN_SATISFIED = "close_when_satisfied"
 CONF_STALE_MINUTES = "stale_minutes"
 CONF_SENSOR_MODE = "sensor_mode"  # how several room sensors are combined, see sensors.py
+CONF_SMART_HEATING = "smart_heating"  # °C above target while the boiler heats for others; 0 = off
 
 DEFAULT_REGULATION = "medium"
 DEFAULT_HYSTERESIS = 0.5
 DEFAULT_CLOSE_WHEN_SATISFIED = True
 DEFAULT_STALE_MINUTES = 180
 DEFAULT_SENSOR_MODE = "average"
+DEFAULT_SMART_HEATING = 0.5
 DEFAULT_SCHEDULE_TEMP = 20.0
 
 # boiler options

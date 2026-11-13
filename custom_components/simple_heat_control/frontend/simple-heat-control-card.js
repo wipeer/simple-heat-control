@@ -323,6 +323,7 @@ class SimpleHeatControlCard extends HTMLElement {
       if (!st) pill = this._pill(this._tp("pill.missing"), "var(--error-color)", "#fff");
       else if (st.state === "off") pill = this._pill(this._tp("pill.off"), "var(--secondary-background-color)", "var(--secondary-text-color)");
       else if (a.demand) pill = this._pill(this._tp("pill.heating"), "#FAEEDA", "#633806");
+      else if (a.smart_heating_active) pill = this._pill(this._tp("pill.joining"), "#FAEEDA", "#633806");
       else pill = this._pill(this._tp("pill.idle"), "var(--secondary-background-color)", "var(--secondary-text-color)");
       if (showPreset) pill += this._pill(room.preset, "transparent", "var(--secondary-text-color)");
       const override = !a.override ? "" : " · " + (a.override.until
@@ -409,6 +410,10 @@ class SimpleHeatControlCard extends HTMLElement {
       <div class="line"><span>${this._t("opt.hysteresis")}</span>
         <input type="number" id="opt-hyst" min="0.1" max="2" step="0.1" placeholder="${this._t("opt.room_own")}" value="${opt.hysteresis ?? ""}" style="width:110px"> °C
         ${opt.hysteresis != null ? `<button class="btn" data-o="hyst-clear">${this._t("opt.clear")}</button>` : ""}</div>
+      <div class="line"><span>${this._t("opt.smart_heating")}</span>
+        <input type="number" id="opt-smart" min="0" max="2" step="0.1" placeholder="${this._t("opt.room_own")}" value="${opt.smart_heating ?? ""}" style="width:110px"> °C
+        ${opt.smart_heating != null ? `<button class="btn" data-o="smart-clear">${this._t("opt.clear")}</button>` : ""}</div>
+      <div class="muted">${this._t("opt.smart_heating_help")}</div>
       <div class="line"><span>${this._t("opt.outdoor")}</span> <select id="opt-outdoor">${outdoorOpts}</select></div>
       <div class="sec">${this._t("opt.translation")}</div>
       <div class="muted">${this._t("opt.translation_help")}</div>
@@ -459,6 +464,7 @@ class SimpleHeatControlCard extends HTMLElement {
       if (t.id === "opt-time") this._applyTexts(await this._setOptions({ time_format: t.value }));
       else if (t.id === "opt-lang") this._applyTexts(await this._setOptions({ language: t.value }));
       else if (t.id === "opt-hyst") this._applyTexts(await this._setOptions({ hysteresis: t.value === "" ? null : Number(t.value) }));
+      else if (t.id === "opt-smart") this._applyTexts(await this._setOptions({ smart_heating: t.value === "" ? null : Number(t.value) }));
       else if (t.id === "opt-outdoor") this._applyTexts(await this._setOptions({ outdoor_sensor: t.value || null }));
       else if (t.id === "opt-file" && t.files && t.files[0]) await this._loadTranslation(await t.files[0].text());
     } catch (err) { this._error = err.message || String(err); }
@@ -488,6 +494,7 @@ class SimpleHeatControlCard extends HTMLElement {
         return;
       } else if (act === "load") await this._loadTranslation(this._opts.paste);
       else if (act === "hyst-clear") this._applyTexts(await this._setOptions({ hysteresis: null }));
+      else if (act === "smart-clear") this._applyTexts(await this._setOptions({ smart_heating: null }));
       else if (act === "remove") { this._applyTexts(await this._setOptions({ translation: null })); this._opts.msg = ""; }
     } catch (err) { this._error = err.message || String(err); }
     this._renderOptions();

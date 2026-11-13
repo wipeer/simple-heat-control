@@ -15,6 +15,12 @@ Per room, every minute and whenever a room sensor changes:
    schedule change, or until cleared).
 2. **Demand** (hysteresis, default 0.5 °C, per room or one for the whole house in *Options*): heating starts when the room is 0.5 °C below the target and
    stops when it reaches the target.
+   **Smart heating** (default 0.5 °C, per room or one for the whole house in *Options*; 0 = off):
+   while the boiler heats because another room asks, a room that doesn't ask takes some of that heat
+   too, up to target + 0.5 °C. It joins at or below target + 0.5 − hysteresis (with the defaults: at or
+   below the target), and a room that was heating on its own carries on past its target. Such a room
+   never asks the boiler itself, so it can't start it or keep it running; when the last asking room is
+   warm, it stops too. The card shows it as *smart heating*.
 3. **TRV**: while the room wants heat, the TRV gets `heat`, preset `manual` (so its own schedule can't
    interfere) and a regulated setpoint. While it doesn't, the TRV gets its minimum setpoint (valve
    closed) — switchable with *Close the valve when the room is warm*.
@@ -22,7 +28,7 @@ Per room, every minute and whenever a room sensor changes:
    next to the radiator and reads too warm, so its setpoint is raised by
    `kp·error + ki·accumulated error + k_ext·(room − outdoor)`, capped (medium: ±2 °C), recalculated every
    5 min. The outdoor thermometer is per room, or one for the whole house in *Options*.
-5. **Convector relay** (optional) is on while the room wants heat.
+5. **Convector relay** (optional) is on while the room heats, smart heating included.
 6. **Stale sensors**: if no room sensor has reported for *stale minutes* (default 180), the TRV gets
    the plain target and regulates on its own sensor; the room counts as wanting heat while the TRV
    reports `heating`.
@@ -105,7 +111,7 @@ type: custom:simple-heat-control-card
 
 - **Mode**: live or dry run (going live asks first).
 - **Time format**: automatic (the card's `time_format:`, else your HA profile), 24 h or 12 h.
-- **Heating for the whole house**: a hysteresis and an outdoor thermometer. When set here, every
+- **Heating for the whole house**: a hysteresis, smart heating and an outdoor thermometer. When set here, every
   room uses them and its own setting is ignored; empty = each room uses its own.
 - **Language**: automatic (Home Assistant's language), English, Čeština, or a loaded translation. It
   covers the card and the texts Simple Heat Control computes (reasons, TRV actions, boiler status), so
