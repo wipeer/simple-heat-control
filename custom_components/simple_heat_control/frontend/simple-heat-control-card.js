@@ -6,6 +6,9 @@ const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const VAILLANT_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const WORKDAYS = DAYS.slice(0, 5);
 const WEEKEND = DAYS.slice(5);
+// how long a manual override lasts: minutes from now, or until the schedule's next change / until cleared
+const OVERRIDE_DURATIONS = [["30", "dur.30m"], ["60", "dur.1h"], ["120", "dur.2h"], ["240", "dur.4h"], ["480", "dur.8h"],
+  ["next", "ed.until_next"], ["forever", "ed.until_clear"]];
 
 const toMin = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
 const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
@@ -45,6 +48,7 @@ class SimpleHeatControlCard extends HTMLElement {
     this._edit = null;      // room editor state, see _startEdit
     this._house = null;     // {mode:"switch", to} or {mode:"manage", ...} while a preset panel is open
     this._opts = null;      // {paste, msg} while the options panel is open
+    this._ovDur = "next";   // the override duration chosen in the editor, one of OVERRIDE_DURATIONS
     this._error = "";
     this._loading = false;
     this._loadedAt = 0;
@@ -360,6 +364,9 @@ class SimpleHeatControlCard extends HTMLElement {
       const st = this._hass.states[this._room(this._edit.roomId).climate];
       const list = (st && st.attributes.actions) || [];
       actionsEl.innerHTML = list.length ? list.slice().reverse().map((x) => `${esc(x.at)} ${esc(x.text)}`).join("<br>") : this._t("ed.none_yet");
+      // an override set, changed, expired or cleared elsewhere: redraw the editor's override part
+      const ovKey = JSON.stringify((st && st.attributes.override) || null);
+      if (ovKey !== this._edit.ovKey) this._renderEditor();
     }
 
     const bEl = this.shadowRoot.getElementById("boiler");
@@ -704,6 +711,9 @@ class SimpleHeatControlCard extends HTMLElement {
     this._error = "";
     this._renderEditor();
     this._renderRows();
+    // the editor opens below the room list: bring it into view
+    const opened = this.shadowRoot.getElementById("editor");
+    if (this._edit && opened && opened.scrollIntoView) opened.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   // after a reload: follow renames/deletes and pick up a newly saved week if nothing is being edited
@@ -749,17 +759,17 @@ class SimpleHeatControlCard extends HTMLElement {
     const others = DAYS.filter((d) => d !== day);
     const roomOpts = this._cfg.rooms.map((r) => `<option value="${esc(r.room_id)}" ${r.room_id === ed.copyRoom ? "selected" : ""}>${r.room_id === ed.roomId ? this._t("ed.this_room", { name: r.name }) : esc(r.name)}</option>`).join("");
     const presetOpts = presets.map((p) => `<option value="${esc(p)}" ${p === copyPreset ? "selected" : ""}>${esc(p)}</option>`).join("");
-    const ovText = !a.override ? this._t("ed.override_none")
-      : a.override.until ? this._t("ed.override_until", { temp: f1(a.override.temperature), time: this._fmtDate(a.override.until) })
-      : this._t("ed.override_forever", { temp: f1(a.override.temperature) });
+    const ovText = this._overrideText(a);
+    ed.ovKey = JSON.stringify(a.override || null);
+    const ovTemp = ed.ovTemp ?? (a.override ? a.override.temperature : (a.schedule_target ?? 21));
 
     el.innerHTML = `<div class="ed">
       <div class="hd"><div class="title">${esc(room.name)}</div><button class="btn" data-act="close">${this._t("card.close")}</button></div>
       <div class="sec">${this._t("ed.override")}</div>
-      <div>${ovText}</div>
-      <div class="line"><input type="number" id="ovt" min="5" max="30" step="0.5" value="${a.override ? a.override.temperature : (a.schedule_target ?? 21)}"> °C
-        <button class="btn" data-act="ov-next">${this._t("ed.until_next")}</button>
-        <button class="btn" data-act="ov-forever">${this._t("ed.until_clear")}</button>
+      <div id="ovtext">${ovText}</div>
+      <div class="line"><button class="btn" data-act="ov-dec" title="${this._t("ed.override_dec")}">−</button><input type="number" id="ovt" min="5" max="30" step="0.5" value="${ovTemp}"><button class="btn" data-act="ov-inc" title="${this._t("ed.override_inc")}">+</button> °C</div>
+      <div class="chips line">${OVERRIDE_DURATIONS.map(([v, key]) => `<button data-odur="${v}" class="${v === this._ovDur ? "on" : ""}">${this._t(key)}</button>`).join("")}</div>
+      <div class="line"><button class="btn primary" data-act="ov-set">${this._t("ed.override_set")}</button>
         ${a.override ? `<button class="btn" data-act="ov-clear">${this._t("ed.back")}</button>` : ""}
         <button class="btn" data-act="power">${this._t(st && st.state === "off" ? "ed.turn_on" : "ed.turn_off")}</button></div>
       <div class="sec">${this._t("ed.recent")}</div>
@@ -794,6 +804,20 @@ class SimpleHeatControlCard extends HTMLElement {
     this._showError();
   }
 
+  _overrideText(a) {
+    return !a.override ? this._t("ed.override_none")
+      : a.override.until ? this._t("ed.override_until", { temp: f1(a.override.temperature), time: this._fmtDate(a.override.until) })
+      : this._t("ed.override_forever", { temp: f1(a.override.temperature) });
+  }
+
+  // the temperature field's value, kept in the editor state so a redraw doesn't reset it
+  _ovTempNow() {
+    const input = this.shadowRoot.getElementById("ovt");
+    const v = input ? Number(input.value) : NaN;
+    if (!isNaN(v) && input.value !== "") this._edit.ovTemp = v;
+    return this._edit.ovTemp;
+  }
+
   // hour + minute dropdowns: the browser's time input ignores HA's 12/24 h setting
   _timeSelects(i, min) {
     const h = Math.floor(min / 60), m = min % 60;
@@ -807,6 +831,7 @@ class SimpleHeatControlCard extends HTMLElement {
     const ed = this._edit; const t = e.target;
     if (t.id === "cproom") { ed.copyRoom = t.value; this._renderEditor(); return; }
     if (t.id === "cppreset") { ed.copyPreset = t.value; this._renderEditor(); return; }
+    if (t.id === "ovt") { this._ovTempNow(); return; }
     if (t.dataset.i === undefined) return;
     ed.pending = null;  // a preview made before this edit would show the old draft
     const pts = ed.draft[ed.day];
@@ -927,11 +952,13 @@ class SimpleHeatControlCard extends HTMLElement {
       this._renderEditor(); this._renderRows(); return;
     }
 
+    const od = e.target.closest("button[data-odur]");
+    if (od) { this._ovTempNow(); this._ovDur = od.dataset.odur; this._renderEditor(); return; }
+
     const b = e.target.closest("button[data-act]"); if (!b) return;
     const act = b.dataset.act;
     const room = this._room(ed.roomId);
     const pts = ed.draft[ed.day];
-    const ovt = () => Number(this.shadowRoot.getElementById("ovt").value);
     this._error = "";
     ed.pending = null;  // the actions below either change the draft or open a new preview
     if (!["copyday", "copyweek", "use", "revert"].includes(act)) ed.notice = "";
@@ -960,9 +987,24 @@ class SimpleHeatControlCard extends HTMLElement {
         ed.draft = clone(res.schedule);
         ed.notice = this._tp("ed.saved", { preset: ed.preset });
       }
-      else if (act === "ov-next") await this._hass.callWS({ type: "simple_heat_control/override/set", room_id: room.room_id, temperature: ovt() });
-      else if (act === "ov-forever") await this._hass.callWS({ type: "simple_heat_control/override/set", room_id: room.room_id, temperature: ovt(), until: null });
-      else if (act === "ov-clear") await this._hass.callWS({ type: "simple_heat_control/override/clear", room_id: room.room_id });
+      else if (act === "ov-dec" || act === "ov-inc") {
+        const v = this._ovTempNow();
+        if (!isNaN(v)) ed.ovTemp = Math.min(30, Math.max(5, Math.round((v + (act === "ov-inc" ? 0.5 : -0.5)) * 2) / 2));
+      }
+      else if (act === "ov-set") {
+        const temperature = this._ovTempNow();
+        if (isNaN(temperature) || temperature < 5 || temperature > 30) this._error = this._tp("err.temp_range");
+        else {
+          const msg = { type: "simple_heat_control/override/set", room_id: room.room_id, temperature: Math.round(temperature * 2) / 2 };
+          if (this._ovDur === "forever") msg.until = null;
+          else if (this._ovDur !== "next") msg.minutes = Number(this._ovDur);
+          await this._hass.callWS(msg);
+        }
+      }
+      else if (act === "ov-clear") {
+        await this._hass.callWS({ type: "simple_heat_control/override/clear", room_id: room.room_id });
+        ed.ovTemp = null;
+      }
       else if (act === "power") {
         const st = this._hass.states[room.climate];
         await this._hass.callService("climate", "set_hvac_mode", { entity_id: room.climate, hvac_mode: st && st.state === "off" ? "heat" : "off" });

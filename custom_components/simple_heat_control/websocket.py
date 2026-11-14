@@ -1,12 +1,14 @@
 """Websocket commands used by the simple-heat-control card."""
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .hub import Hub
@@ -108,7 +110,10 @@ async def ws_set_schedule(hass: HomeAssistant, connection: websocket_api.ActiveC
     vol.Required("type"): "simple_heat_control/override/set",
     vol.Required("room_id"): str,
     vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=5, max=30)),
-    vol.Optional("until"): vol.Any(None, str),
+    # how long it lasts, one of: `minutes` from now; `until` an ISO time, null = until cleared;
+    # neither = until the schedule's next change
+    vol.Exclusive("until", "end"): vol.Any(None, str),
+    vol.Exclusive("minutes", "end"): vol.All(vol.Coerce(int), vol.Range(min=1, max=7 * 24 * 60)),
 })
 @websocket_api.async_response
 async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -116,7 +121,9 @@ async def ws_set_override(hass: HomeAssistant, connection: websocket_api.ActiveC
         return
     hub = _hub(hass)
     until = msg.get("until", "next")
-    if until == "next":  # default: until the schedule's next change
+    if "minutes" in msg:
+        until = (dt_util.now() + timedelta(minutes=msg["minutes"])).isoformat()
+    elif until == "next":  # default: until the schedule's next change
         state = hub.rooms[msg["room_id"]].schedule_state
         until = state.next_change.isoformat() if state and state.next_change else None
     await hub.async_set_override(msg["room_id"], msg["temperature"], until)

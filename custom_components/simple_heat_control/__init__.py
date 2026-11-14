@@ -21,7 +21,7 @@ from .room import RoomController
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 ROOM_PLATFORMS = [Platform.CLIMATE, Platform.BINARY_SENSOR, Platform.SELECT]
-BOILER_PLATFORMS = [Platform.BINARY_SENSOR, Platform.SWITCH, Platform.SELECT]
+BOILER_PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.SWITCH, Platform.SELECT]
 
 
 def _options(entry: ConfigEntry) -> dict:

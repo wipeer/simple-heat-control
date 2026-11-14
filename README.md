@@ -91,6 +91,11 @@ Per room (device = room name):
 Boiler:
 - boiler *Heat demand* binary sensor — on while any room wants heat; attributes say which
   rooms, the quick veto state, last cloud call and error.
+- *Heat requested by* sensor — the names of the rooms asking for heat now (or "nobody"). Attributes:
+  `rooms`, `count`, `since`, and `log`, the last 30 times a room started or stopped asking, newest first,
+  each with the room's reason at that moment. HA's history and logbook record every change of the state;
+  `log` itself is kept in memory only (not in the database) and is empty after a restart. Rooms that only
+  take heat through smart heating don't ask, so they aren't listed.
 - *Boiler control* switch — kill switch for boiler calls.
 - *Dry run* switch — dry run for rooms and boiler (see above).
 - *House preset* select — sets every room to one preset (see Presets). It lives on the boiler
@@ -134,6 +139,11 @@ One row per room plus the Vaillant program (read only): the day's blocks coloure
 *Manage presets…* creates, renames and deletes presets.
 
 Click a room to set an override, turn it on/off, or edit its schedule:
+- **override**: set the temperature (± buttons or type it), choose how long it lasts (30 min, 1, 2, 4 or
+  8 hours, until the schedule's next change, or until you clear it) and press *Set override*. *Back to
+  schedule* ends it early. It is stored, so it survives a restart. From automations or scripts the
+  websocket command `simple_heat_control/override/set` takes `room_id`, `temperature` and one of
+  `minutes` or `until` (an ISO time, or null for no end);
 - pick the preset to edit (✓ = the one the room follows now; *Use … in this room now* switches it);
 - the whole week is shown as bars; click a day to edit its blocks (± buttons for the temperature,
   *Add block* splits the longest block);

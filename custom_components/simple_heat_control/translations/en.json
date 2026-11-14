@@ -134,6 +134,11 @@
       "house_preset": {
         "name": "House preset"
       }
+    },
+    "sensor": {
+      "heat_requested_by": {
+        "name": "Heat requested by"
+      }
     }
   }
 }

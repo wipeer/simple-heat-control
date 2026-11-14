@@ -5,9 +5,11 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from . import i18n, presets
 from .const import DEFAULT_SCHEDULE_TEMP, STORAGE_KEY, STORAGE_VERSION
+from .request_log import RequestLog
 from .schedule import validate
 
 # hysteresis / smart_heating / outdoor_sensor: None = each room uses its own; a value = every room uses it
@@ -33,6 +35,8 @@ class Hub:
         self.boiler: BoilerController | None = None
         self.boiler_entry_id: str | None = None
         self._asking: list[str] = []  # rooms asking for heat, as last seen by async_update_boiler
+        self.request_log = RequestLog()  # who asked for heat and when; in memory, empty after a restart
+        self._request_listeners: list = []
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
@@ -254,12 +258,20 @@ class Hub:
         """Names of the rooms that ask the boiler for heat (smart-heating rooms don't count)."""
         return sorted(r.name for r in self.rooms.values() if r.demand and r.hvac_on and r.room_id != exclude)
 
+    def add_request_listener(self, update):
+        self._request_listeners.append(update)
+        return lambda: self._request_listeners.remove(update)
+
     async def async_update_boiler(self) -> None:
         asking = self.rooms_asking()
         if asking != self._asking:
             # smart heating in the other rooms depends on who asks: let them see it now, not in a minute.
             # Their evaluation calls this again, but `asking` is unchanged then, so it stops there.
             self._asking = asking
+            self.request_log.update(asking, {r.name: r.reason for r in self.rooms.values()},
+                                    dt_util.now().isoformat())
+            for update in list(self._request_listeners):
+                update()
             for room in list(self.rooms.values()):
                 if not room.demand:
                     await room.async_evaluate()

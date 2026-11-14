@@ -134,6 +134,11 @@
       "house_preset": {
         "name": "Předvolba domu"
       }
+    },
+    "sensor": {
+      "heat_requested_by": {
+        "name": "Požadavek na teplo od"
+      }
     }
   }
 }
