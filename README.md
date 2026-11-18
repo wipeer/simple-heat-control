@@ -3,6 +3,8 @@
 A small custom integration (`simple_heat_control`) that heats each room from its own temperature
 sensors and starts the Vaillant boiler when any room needs heat — and shows **why** it does everything.
 
+More detail: the [user guide](docs/user/index.md).
+
 ## How it works
 
 Per room, every minute and whenever a room sensor changes:
